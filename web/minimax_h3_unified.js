@@ -1046,7 +1046,7 @@ function attachPromptEditor(node, getState, resizeNode) {
 
     const host = input.parentElement;
     if (!host) return false;
-    const inputHeight = Math.max(42, Math.ceil(input.offsetHeight || input.scrollHeight || 0));
+    const minimumHeight = 96;
     const editor = element("div", {
         className: "h3u-prompt-editor",
         contentEditable: "true",
@@ -1054,16 +1054,16 @@ function attachPromptEditor(node, getState, resizeNode) {
         ariaLabel: "提示词，输入 @ 引用下方已添加的媒体",
         spellcheck: false,
     });
-    editor.style.minHeight = `${inputHeight}px`;
+    editor.style.minHeight = `${minimumHeight}px`;
     const savedHeight = Number(node.properties?.[PROMPT_HEIGHT_PROPERTY]);
-    if (Number.isFinite(savedHeight) && savedHeight > inputHeight) {
-        editor.style.height = `${Math.min(360, savedHeight)}px`;
+    if (Number.isFinite(savedHeight)) {
+        editor.style.height = `${Math.min(360, Math.max(minimumHeight, savedHeight))}px`;
     }
-    host.style.minHeight = `${inputHeight}px`;
+    host.style.minHeight = `${minimumHeight}px`;
     input.style.display = "none";
     host.append(editor);
     const originalComputeSize = promptWidget.computeSize?.bind(promptWidget);
-    const editorHeight = () => Math.max(inputHeight, Math.ceil(editor.offsetHeight || editor.scrollHeight || 0));
+    const editorHeight = () => Math.max(minimumHeight, Math.ceil(editor.offsetHeight || editor.scrollHeight || 0));
     promptWidget.computeSize = (...args) => {
         const original = originalComputeSize?.(...args) || [0, 0];
         return [original[0], Math.max(original[1] || 0, editorHeight() + 8)];
