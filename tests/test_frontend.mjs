@@ -10,7 +10,7 @@ globalThis.h3Test = {
     migrateDurationInput, migrateWidgets, pruneModeInputs, normalizeOutputs,
     removeLegacyModelInputs, alignedFrameCountFromSeconds, roundHalfToEven,
     canonicalInputName, externalInputName, normalizeState, videoAudioAvailability,
-    readJsonResponse, syncDurationControls, expandCollapsedAutogrowInputs,
+    readJsonResponse, syncDurationControls, expandCollapsedAutogrowInputs, syncReferenceSocketVisibility,
     clipboardMediaFiles, firstOpenMediaSlot, visibleSlots, referenceItems, normalizePromptMentions,
 };`;
 eval(source);
@@ -177,6 +177,21 @@ assert.deepEqual(collapsedNode.inputs.map((item) => [item.name, item.type]), [
     ["mode.ref_audios.ref_audio_0", "AUDIO"],
     ["mode.ref_images.ref_image_1", "IMAGE"],
 ]);
+
+const progressiveNode = graphNode([
+    { name: "ref_image_0", link: null },
+    { name: "ref_image_1", link: null },
+    { name: "ref_image_2", link: null },
+    { name: "ref_video_0", link: null },
+    { name: "ref_video_1", link: null },
+    { name: "ref_video_2", link: null },
+]);
+progressiveNode.widgets = [{ name: "mode", value: "omni_reference" }];
+assert.equal(h3Test.syncReferenceSocketVisibility(progressiveNode), true);
+assert.deepEqual(progressiveNode.inputs.map((item) => item.hidden), [false, true, true, false, true, true]);
+progressiveNode.inputs[0].link = 41;
+h3Test.syncReferenceSocketVisibility(progressiveNode);
+assert.deepEqual(progressiveNode.inputs.map((item) => item.hidden), [false, false, true, false, true, true]);
 
 assert.deepEqual(await h3Test.readJsonResponse({
     ok: true,
