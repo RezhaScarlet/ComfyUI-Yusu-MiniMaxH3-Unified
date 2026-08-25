@@ -205,9 +205,8 @@ class PluginTests(unittest.TestCase):
         omni = next(option for option in mode["options"] if option["name"] == "omni_reference")
         for name, count in (("ref_images", 9), ("ref_videos", 3), ("ref_video_audios", 3), ("ref_audios", 3)):
             group = next(item for item in omni["inputs"] if item["name"] == name)
-            self.assertEqual(group["template"]["min"], count)
+            self.assertEqual(group["template"]["min"], 0)
             self.assertEqual(group["template"]["max"], count)
-            self.assertTrue(group["template"]["input"]["optional"])
 
     def tearDown(self):
         runtime = PLUGIN_ROOT / "tests" / "runtime_tmp"

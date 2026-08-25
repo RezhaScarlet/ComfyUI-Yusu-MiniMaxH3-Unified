@@ -446,24 +446,25 @@ function expandCollapsedAutogrowInputs(node) {
     return changed;
 }
 
-function syncReferenceSocketVisibility(node) {
-    const groups = [["ref_image_", 9], ["ref_video_", 3], ["ref_video_audio_", 3], ["ref_audio_", 3]];
-    const showReferences = widget(node, "mode")?.value === "omni_reference";
+function ensureNextReferenceInputs(node) {
+    if (widget(node, "mode")?.value !== "omni_reference" || typeof node.addInput !== "function") return false;
+    const groups = [["ref_image_", 9, "IMAGE"], ["ref_video_", 3, "IMAGE"], ["ref_video_audio_", 3, "AUDIO"], ["ref_audio_", 3, "AUDIO"]];
     let changed = false;
-    for (const [prefix, count] of groups) {
+    for (const [prefix, count, type] of groups) {
         const inputs = Array.from({ length: count }, (_, index) =>
             node.inputs?.find((input) => canonicalInputName(input?.name) === `${prefix}${index}`)
         );
         const lastConnected = inputs.reduce((last, input, index) => input?.link != null ? index : last, -1);
-        const visibleThrough = showReferences ? Math.min(lastConnected + 1, count - 1) : -1;
-        inputs.forEach((input, index) => {
-            if (!input) return;
-            const hidden = index > visibleThrough;
-            if (input.hidden !== hidden) {
-                input.hidden = hidden;
-                changed = true;
-            }
-        });
+        const next = lastConnected + 1;
+        if (lastConnected < 0 || next >= count || inputs[next]) continue;
+        const previous = inputs[lastConnected];
+        const rawName = String(previous.name || "");
+        const groupPath = rawName.includes(".") ? rawName.slice(0, rawName.lastIndexOf(".") + 1) : "";
+        const name = `${groupPath}${prefix}${next}`;
+        const input = node.addInput(name, type, { shape: previous.shape });
+        input.label = `${prefix}${next}`;
+        input.localized_name = `${prefix}${next}`;
+        changed = true;
     }
     if (changed) node.graph?.setDirtyCanvas?.(true, true);
     return changed;
@@ -1505,7 +1506,7 @@ function buildPanel(node, stateWidget) {
                 removeLegacyModelInputs(node);
                 expandCollapsedAutogrowInputs(node);
                 pruneModeInputs(node);
-                syncReferenceSocketVisibility(node);
+                ensureNextReferenceInputs(node);
                 scheduleOriginalInputLabels(node);
                 syncDurationControls(node);
                 scheduleRender();
@@ -1548,7 +1549,7 @@ function buildPanel(node, stateWidget) {
         requestAnimationFrame(() => {
             removeLegacyModelInputs(node);
             expandCollapsedAutogrowInputs(node);
-            syncReferenceSocketVisibility(node);
+            ensureNextReferenceInputs(node);
             scheduleOriginalInputLabels(node);
         });
         return result;
@@ -1558,7 +1559,7 @@ function buildPanel(node, stateWidget) {
         const result = originalConnectionsChange?.apply(this, arguments);
         scheduleOriginalInputLabels(node);
         requestAnimationFrame(() => {
-            syncReferenceSocketVisibility(node);
+            ensureNextReferenceInputs(node);
             bindPromptSource();
             scheduleRender();
         });
@@ -1575,7 +1576,7 @@ function buildPanel(node, stateWidget) {
         removeLegacyModelInputs(node);
         expandCollapsedAutogrowInputs(node);
         pruneModeInputs(node);
-        syncReferenceSocketVisibility(node);
+        ensureNextReferenceInputs(node);
         scheduleOriginalInputLabels(node);
         restoreState();
         hideWidget(stateWidget);
@@ -1628,7 +1629,7 @@ app.registerExtension({
             removeLegacyModelInputs(node);
             expandCollapsedAutogrowInputs(node);
             pruneModeInputs(node);
-            syncReferenceSocketVisibility(node);
+            ensureNextReferenceInputs(node);
             scheduleOriginalInputLabels(node);
         });
         const stateWidget = widget(node, "media_state");

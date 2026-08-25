@@ -10,7 +10,7 @@ globalThis.h3Test = {
     migrateDurationInput, migrateWidgets, pruneModeInputs, normalizeOutputs,
     removeLegacyModelInputs, alignedFrameCountFromSeconds, roundHalfToEven,
     canonicalInputName, externalInputName, normalizeState, videoAudioAvailability,
-    readJsonResponse, syncDurationControls, expandCollapsedAutogrowInputs, syncReferenceSocketVisibility,
+    readJsonResponse, syncDurationControls, expandCollapsedAutogrowInputs, ensureNextReferenceInputs,
     clipboardMediaFiles, firstOpenMediaSlot, visibleSlots, referenceItems, normalizePromptMentions,
 };`;
 eval(source);
@@ -90,6 +90,11 @@ function graphNode(inputs, outputs = []) {
             const output = { name, type, links: null };
             this.outputs.push(output);
             return output;
+        },
+        addInput(name, type, options = {}) {
+            const input = { name, type, link: null, ...options };
+            this.inputs.push(input);
+            return input;
         },
     };
 }
@@ -179,19 +184,22 @@ assert.deepEqual(collapsedNode.inputs.map((item) => [item.name, item.type]), [
 ]);
 
 const progressiveNode = graphNode([
-    { name: "ref_image_0", link: null },
-    { name: "ref_image_1", link: null },
-    { name: "ref_image_2", link: null },
-    { name: "ref_video_0", link: null },
-    { name: "ref_video_1", link: null },
-    { name: "ref_video_2", link: null },
+    { name: "mode.ref_images.ref_image_0", type: "IMAGE", shape: 4, link: null },
+    { name: "mode.ref_videos.ref_video_0", type: "IMAGE", link: null },
 ]);
 progressiveNode.widgets = [{ name: "mode", value: "omni_reference" }];
-assert.equal(h3Test.syncReferenceSocketVisibility(progressiveNode), true);
-assert.deepEqual(progressiveNode.inputs.map((item) => item.hidden), [false, true, true, false, true, true]);
+assert.equal(h3Test.ensureNextReferenceInputs(progressiveNode), false);
 progressiveNode.inputs[0].link = 41;
-h3Test.syncReferenceSocketVisibility(progressiveNode);
-assert.deepEqual(progressiveNode.inputs.map((item) => item.hidden), [false, false, true, false, true, true]);
+assert.equal(h3Test.ensureNextReferenceInputs(progressiveNode), true);
+assert.deepEqual(progressiveNode.inputs.map((item) => [item.name, item.type, item.shape]), [
+    ["mode.ref_images.ref_image_0", "IMAGE", 4],
+    ["mode.ref_videos.ref_video_0", "IMAGE", undefined],
+    ["mode.ref_images.ref_image_1", "IMAGE", 4],
+]);
+assert.equal(h3Test.ensureNextReferenceInputs(progressiveNode), false);
+progressiveNode.inputs[2].link = 42;
+assert.equal(h3Test.ensureNextReferenceInputs(progressiveNode), true);
+assert.equal(progressiveNode.inputs[3].name, "mode.ref_images.ref_image_2");
 
 assert.deepEqual(await h3Test.readJsonResponse({
     ok: true,
