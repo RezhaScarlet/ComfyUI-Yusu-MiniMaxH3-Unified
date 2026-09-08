@@ -107,11 +107,6 @@ def _install_import_stubs() -> None:
     official.temporal_shape = temporal_shape
 
     class ImageNode:
-        @staticmethod
-        def execute(*_args):
-            return [[torch.zeros(1), {}]], {"samples": torch.zeros(1)}
-
-    class ReferenceNode:
         last_call = None
 
         @classmethod
@@ -119,24 +114,58 @@ def _install_import_stubs() -> None:
             cls,
             clip,
             vae,
-            audio_vae,
             prompt,
             width,
             height,
             length,
-            ref_image_size,
-            images,
-            videos,
-            paired_audio,
-            audios,
+            first_frame=None,
+            last_frame=None,
         ):
+            cls.last_call = {
+                "clip": clip,
+                "vae": vae,
+                "prompt": prompt,
+                "width": width,
+                "height": height,
+                "length": length,
+                "first_frame": first_frame,
+                "last_frame": last_frame,
+            }
+            return [[torch.zeros(1), {}]], {"samples": torch.zeros(1)}
+
+    class ReferenceNode:
+        last_call = None
+
+        # Signature mirrors comfy_extras.nodes_minimax_h3.MiniMaxH3ReferenceToVideo
+        # so keyword-binding drift between plugin and core fails loudly here.
+        @classmethod
+        def execute(
+            cls,
+            clip,
+            prompt,
+            width,
+            height,
+            length,
+            ref_image_size="match",
+            vae=None,
+            audio_vae=None,
+            ref_images=None,
+            ref_videos=None,
+            ref_video_audios=None,
+            ref_audios=None,
+        ):
+            videos = ref_videos or {}
+            paired_audio = ref_video_audios or {}
+            audios = ref_audios or {}
             cls.last_call = {
                 "clip": clip,
                 "vae": vae,
                 "audio_vae": audio_vae,
                 "prompt": prompt,
+                "width": width,
+                "height": height,
                 "length": length,
-                "images": images,
+                "images": ref_images,
                 "videos": videos,
                 "paired_audio": paired_audio,
                 "audios": audios,
@@ -533,6 +562,26 @@ class PluginTests(unittest.TestCase):
         self.assertEqual(result[2]["waveform"].shape, (1, 1, 64000))
         self.assertEqual(result[2]["sample_rate"], 32000)
 
+    def test_string_widget_values_are_coerced_to_numbers(self):
+        # 新版前端/部分环境下 widget 值可能以字符串到达 execute，
+        # 传给官方节点前必须收敛为 int，否则核心 // 16 会崩溃。
+        result = nodes.MiniMaxH3Unified.execute(
+            mode="omni_reference",
+            clip=object(),
+            vae=object(),
+            audio_vae=object(),
+            prompt="use <Picture 1>",
+            width="1344",
+            height="768.0",
+            duration="5.0",
+        )
+        last = official.MiniMaxH3ReferenceToVideo.last_call
+        self.assertEqual(last["width"], 1344)
+        self.assertEqual(last["height"], 768)
+        self.assertIsInstance(last["width"], int)
+        self.assertIsInstance(last["height"], int)
+        self.assertIsInstance(last["length"], int)
+
     def test_auto_length_uses_longest_reference_audio_and_official_grid(self):
         image = torch.zeros(1, 32, 32, 3)
         result = nodes.MiniMaxH3Unified.execute(
@@ -589,6 +638,12 @@ class PluginTests(unittest.TestCase):
                 auto_length_from_audio=True,
                 **kwargs,
             )
+            last = official.MiniMaxH3ImageToVideo.last_call
+            self.assertEqual(last["width"], 1344)
+            self.assertEqual(last["height"], 768)
+            self.assertEqual(last["length"], 124)
+            self.assertIs(last["first_frame"], kwargs.get("first_frame"))
+            self.assertIsNone(last["last_frame"])
             self.assertIsNone(result[2])
             self.assertEqual(len(result), 3)
 

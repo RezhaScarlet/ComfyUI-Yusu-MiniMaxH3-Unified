@@ -350,6 +350,13 @@ class MiniMaxH3Unified(io.ComfyNode):
             ref_videos = values.get("ref_videos", ref_videos)
             ref_video_audios = values.get("ref_video_audios", ref_video_audios)
             ref_audios = values.get("ref_audios", ref_audios)
+            # 新版 ComfyUI 前端可能把 widget 值以字符串传入
+            if values.get("width") is not None:
+                width = values["width"]
+            if values.get("height") is not None:
+                height = values["height"]
+            if values.get("duration") is not None:
+                duration = values["duration"]
 
         prompt = normalize_prompt_mentions(prompt)
         external: dict[str, Any] = {}
@@ -361,8 +368,12 @@ class MiniMaxH3Unified(io.ComfyNode):
         ):
             external.update(autogrow_slots(prefix, values))
 
-        width = int(width)
-        height = int(height)
+        # 新版 ComfyUI 可能以字符串形式传入 widget 值，统一在此收敛为 int
+        try:
+            width = int(float(width))
+            height = int(float(height))
+        except (TypeError, ValueError, OverflowError) as error:
+            raise ValueError(f"width/height 必须是有效数值；当前为 {width!r} / {height!r}") from error
         validate_generation_size(width, height)
         state = parse_media_state(media_state)
         if mode in {"text_to_video", "first_last_frame"}:
@@ -382,14 +393,14 @@ class MiniMaxH3Unified(io.ComfyNode):
             if last_frame is not None:
                 last_frame = validate_image_tensor(last_frame, "尾帧")
             positive, latent = MiniMaxH3ImageToVideo.execute(
-                clip,
-                vae,
-                prompt,
-                width,
-                height,
-                frame_count,
-                first_frame,
-                last_frame,
+                clip=clip,
+                vae=vae,
+                prompt=prompt,
+                width=width,
+                height=height,
+                length=frame_count,
+                first_frame=first_frame,
+                last_frame=last_frame,
             )[:2]
             return io.NodeOutput(positive, latent, None)
 
@@ -487,18 +498,18 @@ class MiniMaxH3Unified(io.ComfyNode):
             raise ValueError("包含参考音频时必须连接 audio_vae")
 
         output = MiniMaxH3ReferenceToVideo.execute(
-            clip,
-            vae,
-            audio_vae,
-            prompt,
-            width,
-            height,
-            frame_count,
-            ref_image_size,
-            images,
-            videos,
-            paired_audio,
-            audios,
+            clip=clip,
+            vae=vae,
+            audio_vae=audio_vae,
+            prompt=prompt,
+            width=width,
+            height=height,
+            length=frame_count,
+            ref_image_size=ref_image_size,
+            ref_images=images,
+            ref_videos=videos,
+            ref_video_audios=paired_audio,
+            ref_audios=audios,
         )
         positive, latent = output[0], output[1]
         return io.NodeOutput(

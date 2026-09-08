@@ -11,6 +11,13 @@ ai线上工作流：https://www.runninghub.ai/zh-cn/post/2086007179703197697/?in
 
 > 本插件基于 ComfyUI 官方 `MiniMaxH3ImageToVideo` 与 `MiniMaxH3ReferenceToVideo` 节点进行封装，只负责输入组织、媒体处理和接口映射，不修改 MiniMax H3 的推理核心。
 
+## 2026-09-08 更新
+
+- 对齐新版 ComfyUI 的 MiniMax H3 官方节点接口，文生视频、首尾帧生视频和全模态参考三种模式统一改用关键字参数调用，避免官方参数顺序变化造成输入错位。
+- 修复全模态参考模式中字符串被错传为宽高后触发 `unsupported operand type(s) for //: 'str' and 'int'` 的问题。
+- 统一将宽、高及动态模式中的时长输入归一化为数值，并为无效宽高提供明确错误提示。
+- 增加三种模式的接口签名、宽高类型、帧数及首尾帧传递回归测试。
+
 ## 2026-08-10 更新
 
 - 上传使用本地 ComfyUI 标准 `/upload/image` 资产入口。
