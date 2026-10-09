@@ -330,8 +330,13 @@ class PluginTests(unittest.TestCase):
             [],
             [10, 10],
         )
+        media.validate_reference_limits({"a": 1}, {}, {}, {"ref_audio_1": audio(30)}, [], [30])
+        media.validate_reference_limits({}, {"ref_video_1": 1}, {"ref_video_audio_1": audio(30)}, {}, [2], [30])
+        for duration in (1.999, float("nan"), float("inf")):
+            with self.assertRaisesRegex(ValueError, "不少于 2 秒"):
+                media.validate_audio_duration(duration)
         with self.assertRaisesRegex(ValueError, "2–15"):
-            media.validate_reference_limits({"a": 1}, {}, {}, {"ref_audio_1": audio(15.001)}, [], [15.001])
+            media.validate_reference_limits({}, {"ref_video_1": 1}, {}, {}, [15.001], [])
         with self.assertRaisesRegex(ValueError, "唯一参考"):
             media.validate_reference_limits({}, {}, {}, {"ref_audio_1": audio()}, [], [2.0])
         with self.assertRaisesRegex(ValueError, "同编号视频"):
@@ -451,10 +456,15 @@ class PluginTests(unittest.TestCase):
                         "trim_end": 7,
                     }
                 )
-        self.assertTrue(container.seek_calls)
-        self.assertLess(container.decoded, 20)
-        self.assertEqual(loaded["waveform"].shape, (1, 1, 20))
-        self.assertEqual(duration, 2.0)
+                self.assertTrue(container.seek_calls)
+                self.assertLess(container.decoded, 20)
+                self.assertEqual(loaded["waveform"].shape, (1, 1, 20))
+                self.assertEqual(duration, 2.0)
+                loaded, duration = media.load_audio(
+                    {"path": f"{media.MEDIA_SUBDIR}/audio.wav", "duration": 20}
+                )
+                self.assertEqual(loaded["waveform"].shape, (1, 1, 200))
+                self.assertEqual(duration, 20.0)
 
     def test_embedded_audio_alignment_pads_late_audio_start(self):
         sample_rate = 10
@@ -597,11 +607,11 @@ class PluginTests(unittest.TestCase):
             ref_images={"mode.ref_images.ref_image_0": image},
             ref_audios={
                 "mode.ref_audios.ref_audio_0": audio(2.0),
-                "mode.ref_audios.ref_audio_1": audio(5.817),
+                "mode.ref_audios.ref_audio_1": audio(20.817),
             },
         )
-        self.assertEqual(official.MiniMaxH3ReferenceToVideo.last_call["length"], 141)
-        self.assertEqual(result[2]["waveform"].shape[-1], round(5.817 * 32000))
+        self.assertEqual(official.MiniMaxH3ReferenceToVideo.last_call["length"], 515)
+        self.assertEqual(result[2]["waveform"].shape[-1], round(20.817 * 32000))
         self.assertEqual(len(result), 3)
 
     def test_auto_length_without_audio_falls_back_to_manual_length(self):
